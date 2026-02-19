@@ -3,9 +3,22 @@ import math
 from collections import Counter, deque
 import os
 import csv
-from termcolor import colored
+import psutil
+import pandas as pd
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
+# Configuration
+CONFIG = {
+    "entropy_threshold": 7.5,
+    "rename_threshold": 10,
+    "delete_threshold": 10,
+    "high_entropy_threshold": 5,
+    "total_ops_threshold": 50,
+    "summary_interval": 10,          # Terminal summary every 10 seconds
+    "csv_interval": 60,              # CSV write every 60 seconds (less storage)
+    "csv_file": 'ransomware_events.csv'
+}
 
 def calculate_entropy(file_path, max_bytes=4096):
     try:
@@ -29,21 +42,22 @@ class RansomwareFileHandler(FileSystemEventHandler):
     IGNORED_PREFIXES = ('.', '#', '__')
     IGNORED_SUFFIXES = ('.swp', '.swx', '~', '.save', '.lock', '.tmp', '.bak')
 
-    def __init__(self, csv_file='ransomware_events.csv'):
+    def __init__(self):
         self.created_events = deque(maxlen=1000)
         self.modified_events = deque(maxlen=1000)
         self.deleted_events = deque(maxlen=1000)
         self.renamed_events = deque(maxlen=1000)
         self.high_entropy_count = 0
         self.active_high_entropy_files = set()
-        self.extensions_last_10s = deque(maxlen=1000)  # for unique extensions
-        self.csv_file = csv_file
-        # Create CSV headers if file doesn't exist
-        if not os.path.exists(csv_file):
-            with open(csv_file, 'w', newline='') as f:
+        self.extensions_last_10s = deque(maxlen=1000)
+        self.feature_vectors = []  # For ML engine integration
+
+        # CSV setup (headers only once)
+        if not os.path.exists(CONFIG['csv_file']):
+            with open(CONFIG['csv_file'], 'w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(['timestamp', 'type', 'created_10s', 'modified_10s', 'deleted_10s', 'renamed_10s',
-                                 'unique_extensions_10s', 'high_entropy_total', 'active_high_entropy', 'details'])
+                                 'unique_exts_10s', 'high_entropy_total', 'active_high_entropy', 'details'])
 
     def should_ignore(self, path_str):
         filename = os.path.basename(path_str)
@@ -80,20 +94,32 @@ class RansomwareFileHandler(FileSystemEventHandler):
             len(self.active_high_entropy_files),
             details
         ]
-        with open(self.csv_file, 'a', newline='') as f:
-            csv.writer(f).writerow(row)
+        with open(CONFIG['csv_file'], 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(row)
+
+    def _get_process_info(self, event):
+        try:
+            pids = psutil.pids()
+            for pid in pids:
+                p = psutil.Process(pid)
+                if event.src_path in [f.path for f in p.open_files()]:
+                    return p.name(), p.pid
+        except Exception:
+            return None, None
+        return None, None
 
     def on_created(self, event):
         self._record_event(self.created_events)
         if event.is_directory:
-            print(colored(f"[DIR CREATED] {event.src_path}", 'cyan'))
+            print(f"[DIR CREATED] {event.src_path}")
             return
 
         entropy = calculate_entropy(event.src_path)
         ext = os.path.splitext(event.src_path)[1].lower() or '.noext'
         self.extensions_last_10s.append((time.time(), ext))
 
-        if entropy > 7.0:
+        if entropy > CONFIG['entropy_threshold']:
             self.high_entropy_count += 1
             self.active_high_entropy_files.add(event.src_path)
             self._log_to_csv('HIGH_ENTROPY_CREATE', f"{event.src_path} Entropy:{entropy:.2f}")
@@ -102,7 +128,17 @@ class RansomwareFileHandler(FileSystemEventHandler):
         if entropy < 0.5: return
 
         size = os.path.getsize(event.src_path) if os.path.exists(event.src_path) else 0
-        print(f"[CREATED]   {event.src_path: <70}  Size: {size:>6} B   Entropy: {entropy: >5.2f}")
+        process_name, pid = self._get_process_info(event)
+        print(f"[CREATED] {event.src_path: <70} Size: {size:>6} B Entropy: {entropy: >5.2f} Process: {process_name} (PID:{pid})")
+
+        # Save feature vector for ML
+        self.feature_vectors.append({
+            'event_type': 'create',
+            'entropy': entropy,
+            'size': size,
+            'extension': ext,
+            'process': process_name
+        })
 
     def on_modified(self, event):
         self._record_event(self.modified_events)
@@ -112,7 +148,7 @@ class RansomwareFileHandler(FileSystemEventHandler):
         ext = os.path.splitext(event.src_path)[1].lower() or '.noext'
         self.extensions_last_10s.append((time.time(), ext))
 
-        if entropy > 7.0:
+        if entropy > CONFIG['entropy_threshold']:
             if event.src_path not in self.active_high_entropy_files:
                 self.high_entropy_count += 1
             self.active_high_entropy_files.add(event.src_path)
@@ -122,12 +158,29 @@ class RansomwareFileHandler(FileSystemEventHandler):
         if entropy < 0.5: return
 
         size = os.path.getsize(event.src_path) if os.path.exists(event.src_path) else 0
-        print(f"[MODIFIED]  {event.src_path: <70}  Size: {size:>6} B   Entropy: {entropy: >5.2f}")
+        process_name, pid = self._get_process_info(event)
+        print(f"[MODIFIED] {event.src_path: <70} Size: {size:>6} B Entropy: {entropy: >5.2f} Process: {process_name} (PID:{pid})")
+
+        # Save feature vector
+        self.feature_vectors.append({
+            'event_type': 'modify',
+            'entropy': entropy,
+            'size': size,
+            'extension': ext,
+            'process': process_name
+        })
 
     def on_deleted(self, event):
         self._record_event(self.deleted_events)
         self.active_high_entropy_files.discard(event.src_path)
-        print(colored(f"[DELETED]   {event.src_path}", 'yellow'))
+        process_name, pid = self._get_process_info(event)
+        print(f"[DELETED] {event.src_path} Process: {process_name} (PID:{pid})")
+
+        # Save feature vector
+        self.feature_vectors.append({
+            'event_type': 'delete',
+            'process': process_name
+        })
 
     def on_moved(self, event):
         self._record_event(self.renamed_events)
@@ -140,14 +193,21 @@ class RansomwareFileHandler(FileSystemEventHandler):
         ]
 
         if any(dest_filename.endswith(ext) for ext in suspicious_exts):
-            print(colored(f"[SUSPICIOUS RENAME] {event.src_path} → {event.dest_path}", 'red'))
+            print(f"[SUSPICIOUS RENAME] {event.src_path} → {event.dest_path}")
             self._log_to_csv('SUSPICIOUS_RENAME', f"{event.src_path} → {event.dest_path}")
         else:
-            print(f"[RENAMED]   {event.src_path}  →  {event.dest_path}")
+            print(f"[RENAMED] {event.src_path} → {event.dest_path}")
 
         if event.src_path in self.active_high_entropy_files:
             self.active_high_entropy_files.discard(event.src_path)
             self.active_high_entropy_files.add(event.dest_path)
+
+        # Save feature vector
+        self.feature_vectors.append({
+            'event_type': 'rename',
+            'old_ext': os.path.splitext(event.src_path)[1].lower(),
+            'new_ext': os.path.splitext(event.dest_path)[1].lower()
+        })
 
     def print_summary(self):
         c = self._count_last_10s(self.created_events)
@@ -155,32 +215,27 @@ class RansomwareFileHandler(FileSystemEventHandler):
         d = self._count_last_10s(self.deleted_events)
         r = self._count_last_10s(self.renamed_events)
         active_he = len(self.active_high_entropy_files)
-        total_ops = c + m + d + r
-        unique_ext = self._get_unique_extensions_last_10s()
 
-        summary_line = f"[SUMMARY 10s]  Created: {c:>3}   Modified: {m:>3}   Deleted: {d:>3}   Renamed: {r:>3}   High-entropy: {self.high_entropy_count:>3}   Active High-entropy: {active_he:>3}   Unique Exts: {unique_ext:>2}"
-        print(colored(summary_line, 'green'))
-
-        self._log_to_csv('SUMMARY', f"C:{c} M:{m} D:{d} R:{r} HE:{self.high_entropy_count} ActiveHE:{active_he} UniqueExts:{unique_ext}")
+        print(f"[SUMMARY 10s] Created: {c:>3} Modified: {m:>3} Deleted: {d:>3} Renamed: {r:>3} High-entropy: {self.high_entropy_count:>3} Active High-entropy: {active_he:>3}")
 
         # Alert thresholds
-        if r > 10:
-            print(colored("HIGH RISK! Possible ransomware rename attack", 'red', attrs=['bold']))
-            self._log_to_csv('ALERT', 'Possible ransomware rename attack')
-        if d > 10:
-            print(colored("HIGH RISK! Mass deletion detected", 'red', attrs=['bold']))
-            self._log_to_csv('ALERT', 'Mass deletion detected')
-        if self.high_entropy_count > 5:
-            print(colored("HIGH RISK! Encryption detected", 'red', attrs=['bold']))
-            self._log_to_csv('ALERT', 'Encryption detected')
-        if total_ops > 50:
-            print(colored("HIGH RISK! Massive file activity detected", 'red', attrs=['bold']))
-            self._log_to_csv('ALERT', 'Massive file activity detected')
+        if r > CONFIG['rename_threshold']:
+            print("HIGH RISK! Possible ransomware rename attack")
+        if d > CONFIG['delete_threshold']:
+            print("HIGH RISK! Mass deletion detected")
+        if self.high_entropy_count > CONFIG['high_entropy_threshold']:
+            print("HIGH RISK! Encryption detected")
+        if (c + m + d + r) > CONFIG['total_ops_threshold']:
+            print("HIGH RISK! Massive file activity")
+
+    def get_feature_vector(self):
+        # Output standardized feature vector for ML engine
+        return pd.DataFrame(self.feature_vectors).to_numpy()  # or save to pickle for XGBoost
 
 
 if __name__ == "__main__":
     print("=== RANSOMWARE FILE FEATURES DETECTOR ===")
-    print("With CSV logging, unique extensions count, and color alerts\n")
+    print("File Features module for IDPS Capstone Project\n")
 
     username = input("Enter your username: ").strip()
     if not username:
@@ -190,7 +245,6 @@ if __name__ == "__main__":
     watch_folder = f"/home/{username}"
 
     print(f"\nWatching: {watch_folder} (recursive)")
-    print("Data saved to ransomware_events.csv")
     print("Press Ctrl+C to stop\n")
 
     event_handler = RansomwareFileHandler()
@@ -199,17 +253,26 @@ if __name__ == "__main__":
     observer.start()
 
     last_summary = time.time()
+    last_csv_write = time.time()
 
     try:
         while True:
             time.sleep(1)
             now = time.time()
-            if now - last_summary >= 10:
+
+            # Terminal summary every 10 seconds
+            if now - last_summary >= CONFIG['summary_interval']:
                 event_handler.print_summary()
                 last_summary = now
+
+            # CSV write every 60 seconds
+            if now - last_csv_write >= CONFIG['csv_interval']:
+                event_handler._log_to_csv('SUMMARY', f"Periodic save - C:{event_handler._count_last_10s(event_handler.created_events)} M:{event_handler._count_last_10s(event_handler.modified_events)} D:{event_handler._count_last_10s(event_handler.deleted_events)} R:{event_handler._count_last_10s(event_handler.renamed_events)} HE:{event_handler.high_entropy_count} ActiveHE:{len(event_handler.active_high_entropy_files)} UniqueExts:{event_handler._get_unique_extensions_last_10s()}")
+                last_csv_write = now
+
     except KeyboardInterrupt:
         print("\nStopping watcher...")
         observer.stop()
     observer.join()
     print("Watcher stopped.")
-    print("Check ransomware_events.csv for all logged data")
+    print("Final data saved to ransomware_events.csv")
