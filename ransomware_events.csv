@@ -1,0 +1,28 @@
+timestamp,type,created_10s,modified_10s,deleted_10s,renamed_10s,unique_extensions_10s,high_entropy_total,active_high_entropy,details
+2026-02-17 05:10:13,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:10:23,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:10:33,SUMMARY,1,1,0,0,0,0,0,C:1 M:1 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:10:43,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:10:53,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:11:03,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,1,5,0,1,2,0,0,/home/kali/hridoy/file1.pdf → /home/kali/hridoy/file1.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,2,11,0,2,2,0,0,/home/kali/hridoy/file2.pdf → /home/kali/hridoy/file2.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,3,17,0,3,2,0,0,/home/kali/hridoy/file3.pdf → /home/kali/hridoy/file3.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,4,23,0,4,2,0,0,/home/kali/hridoy/file4.pdf → /home/kali/hridoy/file4.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,5,29,0,5,2,0,0,/home/kali/hridoy/file5.pdf → /home/kali/hridoy/file5.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,6,35,0,6,2,0,0,/home/kali/hridoy/file6.pdf → /home/kali/hridoy/file6.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,7,41,0,7,2,0,0,/home/kali/hridoy/file7.pdf → /home/kali/hridoy/file7.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,8,47,0,8,2,0,0,/home/kali/hridoy/file8.pdf → /home/kali/hridoy/file8.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,9,53,0,9,2,0,0,/home/kali/hridoy/file9.pdf → /home/kali/hridoy/file9.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,10,59,0,10,2,0,0,/home/kali/hridoy/file10.pdf → /home/kali/hridoy/file10.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,11,65,0,11,2,0,0,/home/kali/hridoy/file11.pdf → /home/kali/hridoy/file11.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,12,71,0,12,2,0,0,/home/kali/hridoy/file12.pdf → /home/kali/hridoy/file12.pdf.locked
+2026-02-17 05:11:04,SUSPICIOUS_RENAME,13,77,0,13,2,0,0,/home/kali/hridoy/file13.pdf → /home/kali/hridoy/file13.pdf.locked
+2026-02-17 05:11:05,SUSPICIOUS_RENAME,14,83,0,14,2,0,0,/home/kali/hridoy/file14.pdf → /home/kali/hridoy/file14.pdf.locked
+2026-02-17 05:11:05,SUSPICIOUS_RENAME,15,87,0,15,2,0,0,/home/kali/hridoy/file15.pdf → /home/kali/hridoy/file15.pdf.locked
+2026-02-17 05:11:13,SUMMARY,15,90,0,15,2,0,0,C:15 M:90 D:0 R:15 HE:0 ActiveHE:0 UniqueExts:2
+2026-02-17 05:11:13,ALERT,15,90,0,15,2,0,0,Possible ransomware rename attack
+2026-02-17 05:11:13,ALERT,15,91,0,15,2,0,0,Massive file activity detected
+2026-02-17 05:11:23,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:11:33,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
+2026-02-17 05:11:43,SUMMARY,0,0,0,0,0,0,0,C:0 M:0 D:0 R:0 HE:0 ActiveHE:0 UniqueExts:0
